@@ -1,0 +1,15 @@
+[package]
+name = "idigna"
+version = "0.1.0"
+authors = ["lyons <hi@klyons.ca>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-std = {version = "1.6", features = ["attributes"]}
+async-tls = {version = "0.10", features = ["server"]}
+futures = "0.3"
+rustls = "0.18"
+structopt = "0.3"
+url = "2.1"

@@ -1,6 +1,6 @@
 use async_std::{
   io,
-  io::Read,
+  io::{Read, Write},
   net::{
     TcpListener,
     TcpStream,
@@ -33,6 +33,9 @@ use std::{
 };
 use structopt::StructOpt;
 use url::Url;
+
+mod status;
+use status::Status;
 
 
 #[derive(StructOpt)]
@@ -80,22 +83,55 @@ async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStream) -
   let handshake = acceptor.accept(tcp_stream);
   let mut tls_stream = handshake.await?;
 
-  let url = parse_request(&mut tls_stream).await?;
-
-  if url.path() == "/" {
-    tls_stream.write(b"20 text/gemini\r\nhello, world").await?;
-    tls_stream.flush().await?;
+  if let Ok(url) = parse_request(&mut tls_stream).await {
+    handle_request(&url, &mut tls_stream).await?;
   }
   else {
-    tls_stream.write(b"51 File not found\r\n").await?;
+    tls_stream.write(&Status::BadRequest(None).to_bytes()).await?;
     tls_stream.flush().await?;
   }
 
   Ok(())
 }
 
+async fn handle_request<W: Write + Unpin>(request_url: &Url, tls_stream: &mut W) -> Result<()> {
+  let mut request_path = PathBuf::from("/var/gemini/");
+  request_path.extend(request_url.path_segments().unwrap());
+  println!("Request URL: {}", request_url);
+  println!("Request path: {:?}", request_path);
+
+  if request_path.is_dir() {
+    if request_url.as_str().ends_with("/") {
+      request_path.push("index.gmi");
+    }
+    else {
+      let mut redirect_url = String::from(request_url.as_str());
+      redirect_url.push_str("/");
+      let response = Status::new(31, &redirect_url);
+      tls_stream.write(&response.to_bytes()).await?;
+      tls_stream.flush().await?;
+      return Ok(())
+    }
+  }
+  
+  if request_path.exists() {
+    //let mut file = File::open(request_path).unwrap();
+    //let mut contents = String::new();
+    tls_stream.write(&Status::new(20, "text/gemini").to_bytes()).await?;
+    tls_stream.write(b"dummy content").await?;
+    tls_stream.flush().await?;
+
+    Ok(())
+  }
+  else {
+    tls_stream.write(&Status::NotFound(None).to_bytes()).await?;
+    tls_stream.flush().await?;
+    Ok(())
+  }
+}
+
 async fn parse_request<R: Read + Unpin>(tls_stream: &mut R) -> Result<Url> {
-  let mut buffer = [0; 1026];
+  let mut buffer = [0; 1029];
   let mut length = 0;
 
   loop {

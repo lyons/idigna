@@ -1,10 +1,12 @@
 use async_std::{
+  fs::File as FileAsync,
   io,
   io::{Read, Write},
   net::{
     TcpListener,
     TcpStream,
   },
+  path::{Path, PathBuf},
   prelude::*,
   task,
 };
@@ -28,7 +30,6 @@ use std::{
   io::BufReader,
   marker::Unpin,
   net::ToSocketAddrs,
-  path::{Path, PathBuf},
   sync::Arc,
 };
 use structopt::StructOpt;
@@ -100,7 +101,7 @@ async fn handle_request<W: Write + Unpin>(request_url: &Url, tls_stream: &mut W)
   println!("Request URL: {}", request_url);
   println!("Request path: {:?}", request_path);
 
-  if request_path.is_dir() {
+  if request_path.is_dir().await {
     if request_url.as_str().ends_with("/") {
       request_path.push("index.gmi");
     }
@@ -114,11 +115,10 @@ async fn handle_request<W: Write + Unpin>(request_url: &Url, tls_stream: &mut W)
     }
   }
   
-  if request_path.exists() {
-    //let mut file = File::open(request_path).unwrap();
-    //let mut contents = String::new();
+  if request_path.exists().await {
+    let mut file = FileAsync::open(request_path).await?;
     tls_stream.write(&Status::new(20, "text/gemini").to_bytes()).await?;
-    tls_stream.write(b"dummy content").await?;
+    async_std::io::copy(&mut file, tls_stream).await?;
     tls_stream.flush().await?;
 
     Ok(())
@@ -146,7 +146,7 @@ async fn parse_request<R: Read + Unpin>(tls_stream: &mut R) -> Result<Url> {
   }
 
   let request = std::str::from_utf8(&buffer[..length - 2])?;
-  let url = Url::parse(& request)?;
+  let url = Url::parse(&request)?;
   println!("Request URL: {:?}", url);
 
   Ok(url)

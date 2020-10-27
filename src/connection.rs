@@ -20,11 +20,12 @@ use async_tls::TlsAcceptor;
 // };
 use std::{
   error::Error,
+  ffi::OsStr,
   marker::Unpin,
 };
 use url::Url;
 
-use super::status::Status;
+use crate::status::Status;
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -67,8 +68,9 @@ async fn handle_request<W: Write + Unpin>(request_url: &Url, tls_stream: &mut W)
   }
   
   if request_path.exists().await {
+    let mimetype = get_mimetype(request_path.extension());
     let mut file = File::open(request_path).await?;
-    write_header(tls_stream, Status::Success, "text/gemini").await?;
+    write_header(tls_stream, Status::Success, mimetype).await?;
     async_std::io::copy(&mut file, tls_stream).await?;
   }
   else {
@@ -107,4 +109,24 @@ async fn write_header<W: Write + Unpin>(stream: &mut W, status: Status, meta: &s
   stream.write(b"\r\n").await?;
 
   Ok(())
+}
+
+fn get_mimetype(extension: Option<&OsStr>) -> &'static str {
+  match extension {
+    Some(extension) => {
+      if let Some(extension) = extension.to_str() {
+        match extension {
+          "gemini" => "text/gemini",
+          "gmi"    => "text/gemini",
+          "md"     => "text/markdown",
+          "txt"    => "text/plain",
+          _        => "application/octet-stream",
+        }
+      }
+      else {
+        "application/octet-stream"
+      }
+    },
+    None => "text/plain",
+  }
 }

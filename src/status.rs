@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[allow(dead_code)]
 #[derive(Debug, PartialEq)]
 pub enum Status {
   Input,

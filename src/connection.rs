@@ -25,11 +25,12 @@ use std::{
 };
 use url::Url;
 
+use crate::ConfigSlug;
 use crate::status::Status;
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
-pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStream) -> Result<()> {
+pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStream, config: &ConfigSlug) -> Result<()> {
   //let peer_addr = tcp_stream.peer_addr()?;
   //println!("Connection from {}", peer_addr);
 
@@ -37,7 +38,7 @@ pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStrea
   let mut tls_stream = handshake.await?;
 
   if let Ok(url) = parse_request(&mut tls_stream).await {
-    handle_request(&url, &mut tls_stream).await?;
+    handle_request(&url, &mut tls_stream, config).await?;
   }
   else {
     tls_stream.write(Status::BadRequest.to_bytes()).await?;
@@ -47,11 +48,9 @@ pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStrea
   Ok(())
 }
 
-async fn handle_request<W: Write + Unpin>(request_url: &Url, stream: &mut W) -> Result<()> {
-  let mut request_path = PathBuf::from("/var/gemini/");
+async fn handle_request<W: Write + Unpin>(request_url: &Url, stream: &mut W, config: &ConfigSlug) -> Result<()> {
+  let mut request_path = PathBuf::from(&config.server_root);
   request_path.extend(request_url.path_segments().unwrap());
-  println!("Request URL: {}", request_url);
-  println!("Request path: {:?}", request_path);
 
   if request_path.is_dir().await {
     if !request_url.as_str().ends_with("/") 
@@ -62,7 +61,7 @@ async fn handle_request<W: Write + Unpin>(request_url: &Url, stream: &mut W) -> 
     }
     else {
       let mut index_found = false;
-      for filename in get_index_names() {
+      for filename in &config.index {
         request_path.push(filename);
         if request_path.exists().await {
           index_found = true;
@@ -72,7 +71,7 @@ async fn handle_request<W: Write + Unpin>(request_url: &Url, stream: &mut W) -> 
           request_path.pop();
         }
       }
-      
+
       if index_found {
         serve_file(request_path, stream).await?;
       }
@@ -150,8 +149,4 @@ fn get_mimetype(extension: Option<&OsStr>) -> &'static str {
     },
     None => "text/plain",
   }
-}
-
-fn get_index_names() -> &'static [&'static str] {
-  &["index.gemini", "index.gmi"]
 }

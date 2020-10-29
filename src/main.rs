@@ -44,6 +44,11 @@ struct Options {
   // dir: PathBuf,
 }
 
+pub struct ConfigSlug {
+  index: Vec<String>,
+  server_root: String,
+}
+
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 fn load_certs(path: &Path) -> io::Result<Vec<Certificate>> {
@@ -81,16 +86,23 @@ fn main() -> Result<()> {
 
   let acceptor = TlsAcceptor::from(Arc::new(config));
 
+  let slug = ConfigSlug {
+    index: vec![String::from("index.gemini"), String::from("index.gmi")],
+    server_root: String::from("/var/gemini/"),
+  };
+  let config_slug = Arc::new(slug);
+
   task::block_on(async {
     let listener = TcpListener::bind(&addr).await?;
     let mut incoming = listener.incoming();
 
     while let Some(stream) = incoming.next().await {
       let acceptor = acceptor.clone();
+      let config_slug = config_slug.clone();
       let mut stream = stream?;
 
       task::spawn(async move {
-        let res = connection::handle_connection(&acceptor, &mut stream).await;
+        let res = connection::handle_connection(&acceptor, &mut stream, &config_slug).await;
         match res {
           Ok(_) => {}
           Err(err) => {

@@ -10,6 +10,7 @@ edition = "2018"
 async-std = {version = "1.6", features = ["attributes"]}
 async-tls = {version = "0.10", features = ["server"]}
 futures = "0.3"
+percent-encoding = "2.1"
 regex = "1"
 rustls = "0.18"
 structopt = "0.3"

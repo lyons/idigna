@@ -1,5 +1,5 @@
 use async_std::{
-  fs::File,
+  fs, fs::File,
   io::{Read, Write},
   net::{
     TcpStream,
@@ -18,6 +18,11 @@ use async_tls::TlsAcceptor;
 //   PrivateKey,
 //   ServerConfig,
 // };
+use percent_encoding::{
+  CONTROLS,
+  percent_decode_str,
+  utf8_percent_encode,
+};
 use std::{
   error::Error,
   ffi::OsStr,
@@ -50,7 +55,14 @@ pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStrea
 
 async fn handle_request<W: Write + Unpin>(request_url: &Url, stream: &mut W, config: &ConfigSlug) -> Result<()> {
   let mut request_path = PathBuf::from(&config.server_root);
-  request_path.extend(request_url.path_segments().unwrap());
+  let raw_url_path = if let Some(foo) = request_url.path().strip_prefix("/") {
+    foo
+  }
+  else {
+    request_url.path()
+  };
+  let unescaped_url_path = percent_decode_str(raw_url_path).decode_utf8()?;
+  request_path.push(unescaped_url_path.as_ref());
 
   if request_path.is_dir().await {
     if !request_url.as_str().ends_with("/") 
@@ -76,7 +88,10 @@ async fn handle_request<W: Write + Unpin>(request_url: &Url, stream: &mut W, con
         serve_file(request_path, stream).await?;
       }
       else {
-        write_header(stream, Status::TemporaryFailure, "Forbidden").await?;
+        let generated_index = generate_autoindex(request_path, request_url).await?;
+        write_header(stream, Status::Success, "text/gemini").await?;
+        stream.write(generated_index.as_bytes()).await?;
+        //write_header(stream, Status::TemporaryFailure, "Forbidden").await?;
       }
     }
   }
@@ -149,4 +164,33 @@ fn get_mimetype(extension: Option<&OsStr>) -> &'static str {
     },
     None => "text/plain",
   }
+}
+
+async fn generate_autoindex(path: PathBuf, base_url: &Url) -> Result<String> {
+  let mut result = String::new();
+  let mut dir = fs::read_dir(path).await?;
+
+  result.push_str("Index of ");
+  result.push_str(base_url.as_str());
+  result.push_str("\n\n");
+  
+  while let Some(entry) = dir.next().await {
+    let entry = entry?;
+    if let Some(filename) = entry.path().file_name() {
+      if let Some(filename) = filename.to_str() {
+        let url = base_url.join(filename)?;
+        let escaped_url = utf8_percent_encode(url.as_str(), CONTROLS);
+
+        result.push_str("=> ");
+        result.push_str(&escaped_url.to_string());
+        if entry.path().is_dir().await {result.push_str("/");}
+        result.push_str(" ");
+        result.push_str(filename);
+        if entry.path().is_dir().await {result.push_str("/");}
+        result.push_str("\n");
+      }
+    }
+  }
+
+  Ok(result)
 }

@@ -419,6 +419,7 @@ dependencies = [
  "async-std",
  "async-tls",
  "futures",
+ "percent-encoding",
  "regex",
  "rustls",
  "structopt",

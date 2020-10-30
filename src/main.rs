@@ -88,7 +88,7 @@ fn main() -> Result<()> {
 
   let slug = ConfigSlug {
     index: vec![String::from("index.gemini"), String::from("index.gmi")],
-    server_root: String::from("/var/gemini/"),
+    server_root: String::from("/Users/lyons/Documents/"),
   };
   let config_slug = Arc::new(slug);
 

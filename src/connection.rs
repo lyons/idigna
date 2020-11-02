@@ -193,8 +193,8 @@ async fn generate_autoindex(path: PathBuf, base_url: &Url) -> Result<String> {
     }
   }
 
-  directories.sort();
-  files.sort();
+  directories.sort_by(|x, y| x.to_lowercase().cmp(&y.to_lowercase()));
+  files.sort_by(|x, y| x.to_lowercase().cmp(&y.to_lowercase()));
 
   for d in directories {
     let url = base_url.join(&d)?;

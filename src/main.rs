@@ -1,7 +1,7 @@
 use async_std::{
   io,
   net::TcpListener,
-  path::{Path, PathBuf},
+  path::{PathBuf},
   task,
 };
 use async_tls::TlsAcceptor;
@@ -29,41 +29,29 @@ use structopt::StructOpt;
 
 mod connection;
 mod status;
+mod config;
 
 #[derive(StructOpt)]
 struct Options {
-  addr: String,
-  
-  #[structopt(short = "c", long = "cert", parse(from_os_str))]
-  cert: PathBuf,
-
-  #[structopt(short = "k", long = "key", parse(from_os_str))]
-  key: PathBuf,
-
-  // #[structopt(short = "d", long = "dir", parse(from_os_str))]
-  // dir: PathBuf,
-}
-
-pub struct ConfigSlug {
-  index: Vec<String>,
-  server_root: String,
+  #[structopt(default_value = "config.json", parse(from_os_str))]
+  configuration_path: std::path::PathBuf,
 }
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
-fn load_certs(path: &Path) -> io::Result<Vec<Certificate>> {
+fn load_certs(path: PathBuf) -> io::Result<Vec<Certificate>> {
   certs(&mut BufReader::new(File::open(path)?))
     .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "Invalid certificate"))
 }
 
-fn load_keys(path: &Path) -> io::Result<Vec<PrivateKey>> {
+fn load_keys(path: PathBuf) -> io::Result<Vec<PrivateKey>> {
   pkcs8_private_keys(&mut BufReader::new(File::open(path)?))
     .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "Invalid key"))
 }
 
-fn load_config(options: &Options) -> Result<ServerConfig> {
-  let certs = load_certs(&options.cert)?;
-  let mut keys = load_keys(&options.key)?;
+fn load_config(options: &config::ServerConfig) -> Result<ServerConfig> {
+  let certs = load_certs(PathBuf::from(&options.tls_certificate))?;
+  let mut keys = load_keys(PathBuf::from(&options.tls_certificate_key))?;
 
   let mut config = ServerConfig::new(NoClientAuth::new());
   config
@@ -75,22 +63,19 @@ fn load_config(options: &Options) -> Result<ServerConfig> {
 
 fn main() -> Result<()> {
   let options = Options::from_args();
+  let conf = config::load(options.configuration_path)?;
 
-  let addr = options
-    .addr
+  let addr = conf
+    .listen_addr
     .to_socket_addrs()?
     .next()
     .ok_or_else(|| io::Error::from(io::ErrorKind::AddrNotAvailable))?;
   
-  let config = load_config(&options)?;
+  let config = load_config(&conf)?;
 
   let acceptor = TlsAcceptor::from(Arc::new(config));
 
-  let slug = ConfigSlug {
-    index: vec![String::from("index.gemini"), String::from("index.gmi")],
-    server_root: String::from("/Users/lyons/Documents/"),
-  };
-  let config_slug = Arc::new(slug);
+  let config_slug = Arc::new(conf);
 
   task::block_on(async {
     let listener = TcpListener::bind(&addr).await?;

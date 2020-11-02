@@ -30,12 +30,12 @@ use std::{
 };
 use url::Url;
 
-use crate::ConfigSlug;
+use crate::config::ServerConfig;
 use crate::status::Status;
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
-pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStream, config: &ConfigSlug) -> Result<()> {
+pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStream, config: &ServerConfig) -> Result<()> {
   //let peer_addr = tcp_stream.peer_addr()?;
   //println!("Connection from {}", peer_addr);
 
@@ -53,7 +53,7 @@ pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStrea
   Ok(())
 }
 
-async fn handle_request<W: Write + Unpin>(request_url: &Url, stream: &mut W, config: &ConfigSlug) -> Result<()> {
+async fn handle_request<W: Write + Unpin>(request_url: &Url, stream: &mut W, config: &ServerConfig) -> Result<()> {
   let mut request_path = PathBuf::from(&config.server_root);
   let raw_url_path = if let Some(foo) = request_url.path().strip_prefix("/") {
     foo
@@ -167,6 +167,8 @@ fn get_mimetype(extension: Option<&OsStr>) -> &'static str {
 }
 
 async fn generate_autoindex(path: PathBuf, base_url: &Url) -> Result<String> {
+  let mut directories: Vec<String> = Vec::new();
+  let mut files: Vec<String> = Vec::new();
   let mut result = String::new();
   let mut dir = fs::read_dir(path).await?;
 
@@ -176,20 +178,43 @@ async fn generate_autoindex(path: PathBuf, base_url: &Url) -> Result<String> {
   
   while let Some(entry) = dir.next().await {
     let entry = entry?;
-    if let Some(filename) = entry.path().file_name() {
+    let path = entry.path();
+    if let Some(filename) = path.file_name() {
       if let Some(filename) = filename.to_str() {
-        let url = base_url.join(filename)?;
-        let escaped_url = utf8_percent_encode(url.as_str(), CONTROLS);
-
-        result.push_str("=> ");
-        result.push_str(&escaped_url.to_string());
-        if entry.path().is_dir().await {result.push_str("/");}
-        result.push_str(" ");
-        result.push_str(filename);
-        if entry.path().is_dir().await {result.push_str("/");}
-        result.push_str("\n");
+        if path.is_dir().await {
+          let mut filename = filename.to_string();
+          filename.push('/');
+          directories.push(filename);
+        }
+        else {
+          files.push(filename.to_string());
+        }
       }
     }
+  }
+
+  directories.sort();
+  files.sort();
+
+  for d in directories {
+    let url = base_url.join(&d)?;
+    let escaped_url = utf8_percent_encode(url.as_str(), CONTROLS);
+
+    result.push_str("=> ");
+    result.push_str(&escaped_url.to_string());
+    result.push_str(" ");
+    result.push_str(&d);
+    result.push_str("\n");
+  }
+  for f in files {
+    let url = base_url.join(&f)?;
+    let escaped_url = utf8_percent_encode(url.as_str(), CONTROLS);
+
+    result.push_str("=> ");
+    result.push_str(&escaped_url.to_string());
+    result.push_str(" ");
+    result.push_str(&f);
+    result.push_str("\n");
   }
 
   Ok(result)

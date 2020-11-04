@@ -8,20 +8,8 @@ use async_tls::TlsAcceptor;
 use futures::{
   stream::StreamExt,
 };
-use rustls::{
-  internal::pemfile::{
-    certs,
-    pkcs8_private_keys,
-  },
-  Certificate,
-  NoClientAuth,
-  PrivateKey,
-  ServerConfig,
-};
 use std::{
   error::Error,
-  fs::File,
-  io::BufReader,
   net::ToSocketAddrs,
   sync::Arc,
 };
@@ -31,6 +19,7 @@ mod config;
 mod connection;
 mod request;
 mod status;
+mod tls;
 
 #[derive(StructOpt)]
 struct Options {
@@ -39,28 +28,6 @@ struct Options {
 }
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
-
-fn load_certs(path: PathBuf) -> io::Result<Vec<Certificate>> {
-  certs(&mut BufReader::new(File::open(path)?))
-    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "Invalid certificate"))
-}
-
-fn load_keys(path: PathBuf) -> io::Result<Vec<PrivateKey>> {
-  pkcs8_private_keys(&mut BufReader::new(File::open(path)?))
-    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "Invalid key"))
-}
-
-fn load_config(options: &config::ServerConfig) -> Result<ServerConfig> {
-  let certs = load_certs(PathBuf::from(&options.tls_certificate))?;
-  let mut keys = load_keys(PathBuf::from(&options.tls_certificate_key))?;
-
-  let mut config = ServerConfig::new(NoClientAuth::new());
-  config
-    .set_single_cert(certs, keys.remove(0))
-    .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
-
-  Ok(config)
-}
 
 fn main() -> Result<()> {
   let options = Options::from_args();
@@ -72,9 +39,9 @@ fn main() -> Result<()> {
     .next()
     .ok_or_else(|| io::Error::from(io::ErrorKind::AddrNotAvailable))?;
   
-  let config = load_config(&conf)?;
+  let tls_config = tls::load_tls_config(&conf)?;
 
-  let acceptor = TlsAcceptor::from(Arc::new(config));
+  let acceptor = TlsAcceptor::from(Arc::new(tls_config));
 
   let config_slug = Arc::new(conf);
 

@@ -27,9 +27,10 @@ use std::{
 };
 use structopt::StructOpt;
 
-mod connection;
-mod status;
 mod config;
+mod connection;
+mod request;
+mod status;
 
 #[derive(StructOpt)]
 struct Options {

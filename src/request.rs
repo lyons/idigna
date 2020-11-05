@@ -1,7 +1,7 @@
 use async_std::{
   fs, fs::File,
   io::{Read, Write},
-  path::PathBuf,
+  path::{Path, PathBuf},
   prelude::*,
 };
 use percent_encoding::{
@@ -9,7 +9,9 @@ use percent_encoding::{
   percent_decode_str,
   utf8_percent_encode,
 };
+use regex::Regex;
 use std::{
+  borrow::Cow,
   error::Error,
   ffi::OsStr,
   marker::Unpin,
@@ -45,14 +47,22 @@ pub async fn parse<R: Read + Unpin>(stream: &mut R) -> Result<Url> {
 
 pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config: &ServerConfig) -> Result<()> {
   let mut request_path = PathBuf::from(&config.server_root);
-  let raw_url_path = if let Some(foo) = request_url.path().strip_prefix("/") {
-    foo
+  let url_path = percent_decode_str(request_url.path()).decode_utf8()?;
+  let rewritten_path = rewrite_url(&url_path);
+  // Apply redirects here
+  let mut foo = Path::new(&rewritten_path);
+  if foo.is_absolute() {
+    foo = foo.strip_prefix("/")?;
   }
-  else {
-    request_url.path()
-  };
-  let unescaped_url_path = percent_decode_str(raw_url_path).decode_utf8()?;
-  request_path.push(unescaped_url_path.as_ref());
+  // let raw_url_path = if let Some(foo) = request_url.path().strip_prefix("/") {
+  //   foo
+  // }
+  // else {
+  //   request_url.path()
+  // };
+  // let unescaped_url_path = percent_decode_str(raw_url_path).decode_utf8()?;
+  // request_path.push(unescaped_url_path.as_ref());
+  request_path.push(foo);
 
   if request_path.is_dir().await {
     if !request_url.as_str().ends_with("/") 
@@ -95,6 +105,20 @@ pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config:
   }
 
   Ok(())
+}
+
+fn rewrite_url(url_path: &str) -> String {
+  let test_rewrite_rules = vec!(
+    (Regex::new(r"/docs/(.*)").unwrap(), "/Documents/$1"),
+    (Regex::new(r"/fizz/(.*)/(.*)").unwrap(), "/Documents/$1.$2"),
+  );
+  let mut path = String::from(url_path);
+  for (re, se) in test_rewrite_rules {
+    path = re.replace(&path, se).into_owned();
+    println!("Rewrite result: {:?}", path);
+  }
+
+  path
 }
 
 async fn send_header<W: Write + Unpin>(stream: &mut W, status: Status, meta: &str) -> Result<()> {

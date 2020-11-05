@@ -1,7 +1,6 @@
 use async_std::{
   io,
   net::TcpListener,
-  path::{PathBuf},
   task,
 };
 use async_tls::TlsAcceptor;
@@ -11,6 +10,7 @@ use futures::{
 use std::{
   error::Error,
   net::ToSocketAddrs,
+  path::PathBuf,
   sync::Arc,
 };
 use structopt::StructOpt;
@@ -24,7 +24,7 @@ mod tls;
 #[derive(StructOpt)]
 struct Options {
   #[structopt(default_value = "config.json", parse(from_os_str))]
-  configuration_path: std::path::PathBuf,
+  configuration_path: PathBuf,
 }
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;

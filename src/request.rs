@@ -48,65 +48,83 @@ pub async fn parse<R: Read + Unpin>(stream: &mut R) -> Result<Url> {
 }
 
 pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config: &ServerConfig) -> Result<()> {
-  let mut request_path = PathBuf::from(&config.server_root);
   let url_path = percent_decode_str(request_url.path()).decode_utf8()?;
   let rewritten_path = rewrite_url(&url_path, &config.rewrite_rules);
-  // Apply redirects here
-  let mut foo = Path::new(&rewritten_path);
-  if foo.is_absolute() {
-    foo = foo.strip_prefix("/")?;
-  }
-  // let raw_url_path = if let Some(foo) = request_url.path().strip_prefix("/") {
-  //   foo
-  // }
-  // else {
-  //   request_url.path()
-  // };
-  // let unescaped_url_path = percent_decode_str(raw_url_path).decode_utf8()?;
-  // request_path.push(unescaped_url_path.as_ref());
-  request_path.push(foo);
-
-  if request_path.is_dir().await {
-    if !request_url.as_str().ends_with("/") 
-    {
-      let mut redirect_url = String::from(request_url.as_str());
-      redirect_url.push_str("/");
-      send_header(stream, Status::RedirectPermanent, &redirect_url).await?;
-    }
+  
+  if let Some(redirect) = apply_redirects(&rewritten_path, &config.redirect_rules) {
+    let mut redirect_url;
+    if let Ok(url) = Url::parse(&redirect) {redirect_url = url;}
     else {
-      let mut index_found = false;
-      for filename in &config.index {
-        request_path.push(filename);
-        if request_path.exists().await {
-          index_found = true;
-          break;
-        }
-        else {
-          request_path.pop();
-        }
-      }
+      redirect_url = request_url.clone();
+      redirect_url.set_path(&redirect);
+    }
+    // see if we can parse redirect as an absolute URL, otherwise modify path from request url
+    //let mut redirect_url = request_url.clone();
+    //redirect_url.set_path(&redirect);
+    send_header(stream, Status::RedirectPermanent, redirect_url.as_str()).await?;
+  }
+  else {
+    let mut foo = Path::new(&rewritten_path);
+    if foo.is_absolute() {
+      foo = foo.strip_prefix("/")?;
+    }
+    let mut request_path = PathBuf::from(&config.server_root);
+    request_path.push(foo);
 
-      if index_found {
-        send_file(stream, request_path).await?;
+    if request_path.is_dir().await {
+      if !request_url.as_str().ends_with("/") 
+      {
+        let mut redirect_url = String::from(request_url.as_str());
+        redirect_url.push_str("/");
+        send_header(stream, Status::RedirectPermanent, &redirect_url).await?;
       }
       else {
-        let generated_index = generate_autoindex(request_path, request_url).await?;
-        send_header(stream, Status::Success, "text/gemini").await?;
-        stream.write(generated_index.as_bytes()).await?;
-        //send_header(stream, Status::TemporaryFailure, "Forbidden").await?;
+        let mut index_found = false;
+        for filename in &config.index {
+          request_path.push(filename);
+          if request_path.exists().await {
+            index_found = true;
+            break;
+          }
+          else {
+            request_path.pop();
+          }
+        }
+
+        if index_found {
+          send_file(stream, request_path).await?;
+        }
+        else {
+          if is_auto_indexed(&rewritten_path, &config.autoindex_rules) {
+            let generated_index = generate_autoindex(request_path, request_url).await?;
+            send_header(stream, Status::Success, "text/gemini").await?;
+            stream.write(generated_index.as_bytes()).await?;
+          }
+          else {
+            send_header(stream, Status::TemporaryFailure, "Forbidden").await?;
+          }
+        }
       }
     }
-  }
-  
-  else if request_path.exists().await {
-    send_file(stream, request_path).await?;
-  }
+    
+    else if request_path.exists().await {
+      send_file(stream, request_path).await?;
+    }
 
-  else {
-    send_header(stream, Status::NotFound, "File not found").await?;
+    else {
+      send_header(stream, Status::NotFound, "File not found").await?;
+    }
   }
 
   Ok(())
+}
+
+fn is_auto_indexed(url_path: &str, index_rules: &[Regex]) -> bool {
+  for rule in index_rules {
+    if rule.is_match(url_path) {return true}
+  }
+
+  false
 }
 
 fn rewrite_url(url_path: &str, rewrite_rules: &[RewriteRule]) -> String {
@@ -117,6 +135,17 @@ fn rewrite_url(url_path: &str, rewrite_rules: &[RewriteRule]) -> String {
   }
 
   path
+}
+
+fn apply_redirects(url_path: &str, redirect_rules: &[RewriteRule]) -> Option<String> {
+  for rule in redirect_rules {
+    if rule.pattern.is_match(url_path) {
+      let result = rule.pattern.replace(url_path, rule.substitution.as_str()).into_owned();
+      return Some(result)
+    }
+  }
+
+  None
 }
 
 async fn send_header<W: Write + Unpin>(stream: &mut W, status: Status, meta: &str) -> Result<()> {

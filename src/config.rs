@@ -24,9 +24,12 @@ pub struct ServerConfig {
   pub tls_certificate: String,
   pub tls_certificate_key: String,
 
-  pub index: Vec<String>,
   pub server_root: String,
+  pub index: Vec<String>,
+  #[serde(with = "serde_regex")]
+  pub autoindex_rules: Vec<Regex>,
   pub rewrite_rules: Vec<RewriteRule>,
+  pub redirect_rules: Vec<RewriteRule>,
 }
 
 pub fn load(path: PathBuf) -> Result<ServerConfig> {

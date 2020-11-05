@@ -1,52 +1,29 @@
 use std::fmt;
 
 #[allow(dead_code)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Status {
-  Input,
-  SensitiveInput,
-  Success,
-  RedirectTemporary,
-  RedirectPermanent,
-  TemporaryFailure,
-  ServerUnavailable,
-  CgiError,
-  ProxyError,
-  SlowDown,
-  PermanentFailure,
-  NotFound,
-  Gone,
-  ProxyRequestRefused,
-  BadRequest,
-  ClientCertificateRequired,
-  CertificateNotAuthorized,
-  CertificateNotValid,
+  Input = 10,
+  SensitiveInput = 11,
+  Success = 20,
+  RedirectTemporary = 30,
+  RedirectPermanent = 31,
+  TemporaryFailure = 40,
+  ServerUnavailable = 41,
+  CgiError = 42,
+  ProxyError = 43,
+  SlowDown = 44,
+  PermanentFailure = 50,
+  NotFound = 51,
+  Gone = 52,
+  ProxyRequestRefused = 53,
+  BadRequest = 59,
+  ClientCertificateRequired = 60,
+  CertificateNotAuthorized = 61,
+  CertificateNotValid = 62,
 }
 
 impl Status {
-  pub fn code(&self) -> u16 {
-    match self {
-      Status::Input => 10,
-      Status::SensitiveInput => 11,
-      Status::Success => 20,
-      Status::RedirectTemporary => 30,
-      Status::RedirectPermanent => 31,
-      Status::TemporaryFailure => 40,
-      Status::ServerUnavailable => 41,
-      Status::CgiError => 42,
-      Status::ProxyError => 43,
-      Status::SlowDown => 44,
-      Status::PermanentFailure => 50,
-      Status::NotFound => 51,
-      Status::Gone => 52,
-      Status::ProxyRequestRefused => 53,
-      Status::BadRequest => 59,
-      Status::ClientCertificateRequired => 60,
-      Status::CertificateNotAuthorized => 61,
-      Status::CertificateNotValid => 62,
-    }
-  }
-
   pub fn to_bytes(&self) -> &'static [u8] {
     match self {
       Status::Input => b"10",
@@ -73,6 +50,6 @@ impl Status {
 
 impl fmt::Display for Status {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{}", self.code())
+    write!(f, "{}", *self as u16)
   }
 }

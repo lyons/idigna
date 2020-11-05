@@ -42,36 +42,40 @@ pub async fn parse<R: Read + Unpin>(stream: &mut R) -> Result<Url> {
 
   let request = std::str::from_utf8(&buffer[..length - 2])?;
   let url = Url::parse(&request)?;
-  println!("Request URL: {:?}", url);
 
   Ok(url)
 }
 
 pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config: &ServerConfig) -> Result<()> {
   let url_path = percent_decode_str(request_url.path()).decode_utf8()?;
-  let rewritten_path = rewrite_url(&url_path, &config.rewrite_rules);
+  let url_path = rewrite_url(&url_path, &config.rewrite_rules);
   
-  if let Some(redirect) = apply_redirects(&rewritten_path, &config.redirect_rules) {
+  // Redirect request if possible ----------------------------------------------
+  if let Some(redirect) = apply_redirects(&url_path, &config.redirect_rules) {
     let mut redirect_url;
     if let Ok(url) = Url::parse(&redirect) {redirect_url = url;}
     else {
       redirect_url = request_url.clone();
       redirect_url.set_path(&redirect);
     }
-    // see if we can parse redirect as an absolute URL, otherwise modify path from request url
-    //let mut redirect_url = request_url.clone();
-    //redirect_url.set_path(&redirect);
     send_header(stream, Status::RedirectPermanent, redirect_url.as_str()).await?;
   }
-  else {
-    let mut foo = Path::new(&rewritten_path);
-    if foo.is_absolute() {
-      foo = foo.strip_prefix("/")?;
-    }
-    let mut request_path = PathBuf::from(&config.server_root);
-    request_path.push(foo);
 
-    if request_path.is_dir().await {
+  // Otherwise attempt to serve request ----------------------------------------
+  else {
+    // When building the path to attempt serving a file from, we need to strip the
+    // leading '/' from the URL path (if it exists (which it always should)), as
+    // pushing an absolute path on to a PathBuf replaces the existing path in it
+    // rather than appending it. 
+    let mut request_path = Path::new(&url_path);
+    if request_path.is_absolute() {
+      request_path = request_path.strip_prefix("/")?;
+    }
+    let mut file_path = PathBuf::from(&config.server_root);
+    file_path.push(request_path);
+
+    // Requested path is directory ---------------------------------------------
+    if file_path.is_dir().await {
       if !request_url.as_str().ends_with("/") 
       {
         let mut redirect_url = String::from(request_url.as_str());
@@ -81,22 +85,22 @@ pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config:
       else {
         let mut index_found = false;
         for filename in &config.index {
-          request_path.push(filename);
-          if request_path.exists().await {
+          file_path.push(filename);
+          if file_path.exists().await {
             index_found = true;
             break;
           }
           else {
-            request_path.pop();
+            file_path.pop();
           }
         }
 
         if index_found {
-          send_file(stream, request_path).await?;
+          send_file(stream, file_path).await?;
         }
         else {
-          if is_auto_indexed(&rewritten_path, &config.autoindex_rules) {
-            let generated_index = generate_autoindex(request_path, request_url).await?;
+          if is_auto_indexed(&url_path, &config.autoindex_rules) {
+            let generated_index = generate_autoindex(file_path, request_url).await?;
             send_header(stream, Status::Success, "text/gemini").await?;
             stream.write(generated_index.as_bytes()).await?;
           }
@@ -107,10 +111,12 @@ pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config:
       }
     }
     
-    else if request_path.exists().await {
-      send_file(stream, request_path).await?;
+    // Requested path is file --------------------------------------------------
+    else if file_path.exists().await {
+      send_file(stream, file_path).await?;
     }
 
+    // Requested path does not exist -------------------------------------------
     else {
       send_header(stream, Status::NotFound, "File not found").await?;
     }

@@ -3,11 +3,9 @@ use std::{
   error::Error,
   fs,
   path::PathBuf,
-  //sync::Arc,
 };
 use serde::{Deserialize, Serialize};
 use serde_regex;
-//use serde_json::Result;
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 

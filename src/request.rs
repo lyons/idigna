@@ -11,7 +11,6 @@ use percent_encoding::{
 };
 use regex::Regex;
 use std::{
-  borrow::Cow,
   error::Error,
   ffi::OsStr,
   marker::Unpin,
@@ -20,7 +19,10 @@ use url::Url;
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
-use crate::config::ServerConfig;
+use crate::config::{
+  RewriteRule,
+  ServerConfig,
+};
 use crate::status::Status;
 
 pub async fn parse<R: Read + Unpin>(stream: &mut R) -> Result<Url> {
@@ -48,7 +50,7 @@ pub async fn parse<R: Read + Unpin>(stream: &mut R) -> Result<Url> {
 pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config: &ServerConfig) -> Result<()> {
   let mut request_path = PathBuf::from(&config.server_root);
   let url_path = percent_decode_str(request_url.path()).decode_utf8()?;
-  let rewritten_path = rewrite_url(&url_path);
+  let rewritten_path = rewrite_url(&url_path, &config.rewrite_rules);
   // Apply redirects here
   let mut foo = Path::new(&rewritten_path);
   if foo.is_absolute() {
@@ -107,14 +109,10 @@ pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config:
   Ok(())
 }
 
-fn rewrite_url(url_path: &str) -> String {
-  let test_rewrite_rules = vec!(
-    (Regex::new(r"/docs/(.*)").unwrap(), "/Documents/$1"),
-    (Regex::new(r"/fizz/(.*)/(.*)").unwrap(), "/Documents/$1.$2"),
-  );
+fn rewrite_url(url_path: &str, rewrite_rules: &[RewriteRule]) -> String {
   let mut path = String::from(url_path);
-  for (re, se) in test_rewrite_rules {
-    path = re.replace(&path, se).into_owned();
+  for rule in rewrite_rules {
+    path = rule.pattern.replace(&path, rule.substitution.as_str()).into_owned();
     println!("Rewrite result: {:?}", path);
   }
 

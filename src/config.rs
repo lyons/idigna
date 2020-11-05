@@ -1,3 +1,4 @@
+use regex::Regex;
 use std::{
   error::Error,
   fs,
@@ -5,9 +6,17 @@ use std::{
   //sync::Arc,
 };
 use serde::{Deserialize, Serialize};
+use serde_regex;
 //use serde_json::Result;
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RewriteRule {
+  #[serde(with = "serde_regex")]
+  pub pattern: Regex,
+  pub substitution: String,
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ServerConfig {
@@ -17,6 +26,7 @@ pub struct ServerConfig {
 
   pub index: Vec<String>,
   pub server_root: String,
+  pub rewrite_rules: Vec<RewriteRule>,
 }
 
 pub fn load(path: PathBuf) -> Result<ServerConfig> {

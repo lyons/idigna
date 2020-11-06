@@ -19,7 +19,11 @@ pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStrea
   let mut tls_stream = handshake.await?;
 
   if let Ok(url) = request::parse(&mut tls_stream).await {
-    request::handle(&mut tls_stream, &url, config).await?;
+    if let Some(hostname) = url.host_str() {
+      if config.server_name.iter().any(|name| name.as_str() == hostname) {
+        request::handle(&mut tls_stream, &url, config).await?;
+      }
+    }
   }
   else {
     tls_stream.write(Status::BadRequest.to_bytes()).await?;

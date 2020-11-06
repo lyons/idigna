@@ -22,11 +22,14 @@ pub struct ServerConfig {
   pub tls_certificate: String,
   pub tls_certificate_key: String,
 
+  pub server_name: Vec<String>,
   pub server_root: String,
   pub index: Vec<String>,
-  #[serde(with = "serde_regex")]
+  #[serde(default, with = "serde_regex")]
   pub autoindex_rules: Vec<Regex>,
+  #[serde(default)]
   pub rewrite_rules: Vec<RewriteRule>,
+  #[serde(default)]
   pub redirect_rules: Vec<RewriteRule>,
 }
 

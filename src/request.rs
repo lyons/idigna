@@ -100,7 +100,7 @@ pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config:
         }
         else {
           if is_auto_indexed(&url_path, &config.autoindex_rules) {
-            let generated_index = generate_autoindex(file_path, request_url).await?;
+            let generated_index = generate_index(file_path, request_url).await?;
             send_header(stream, Status::Success, "text/gemini").await?;
             stream.write(generated_index.as_bytes()).await?;
           }
@@ -191,7 +191,7 @@ fn get_mimetype(extension: Option<&OsStr>) -> &'static str {
   }
 }
 
-async fn generate_autoindex(path: PathBuf, base_url: &Url) -> Result<String> {
+async fn generate_index(path: PathBuf, base_url: &Url) -> Result<String> {
   let mut directories: Vec<String> = Vec::new();
   let mut files: Vec<String> = Vec::new();
   let mut result = String::new();

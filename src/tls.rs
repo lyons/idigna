@@ -9,15 +9,13 @@ use rustls::{
   ServerConfig as TlsServerConfig,
 };
 use std::{
-  error::Error,
   fs::File,
   io::{self, BufReader},
   path::PathBuf,
 };
 
 use crate::config::ServerConfig;
-
-type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+use crate::Result;
 
 fn load_certs(path: PathBuf) -> io::Result<Vec<Certificate>> {
   certs(&mut BufReader::new(File::open(path)?))

@@ -4,15 +4,11 @@ use async_std::{
 };
 use async_tls::TlsAcceptor;
 use log;
-use std::{
-  error::Error,
-};
 
 use crate::config::ServerConfig;
 use crate::request;
+use crate::Result;
 use crate::status::Status;
-
-type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStream, config: &ServerConfig) -> Result<()> {
   let peer_addr = tcp_stream.peer_addr()?;

@@ -10,19 +10,15 @@ use percent_encoding::{
   utf8_percent_encode,
 };
 use regex::Regex;
-use std::{
-  error::Error,
-  marker::Unpin,
-};
+use std::marker::Unpin;
 use url::Url;
-
-type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 use crate::config::{
   RewriteRule,
   ServerConfig,
 };
 use crate::mimetype::infer_mimetype;
+use crate::Result;
 use crate::status::Status;
 
 pub async fn parse<R: Read + Unpin>(stream: &mut R) -> Result<Url> {

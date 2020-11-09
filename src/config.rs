@@ -1,13 +1,12 @@
 use regex::Regex;
 use std::{
-  error::Error,
   fs,
   path::PathBuf,
 };
 use serde::{Deserialize, Serialize};
 use serde_regex;
 
-type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+use crate::Result;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RewriteRule {
@@ -35,10 +34,7 @@ pub struct ServerConfig {
 
 pub fn load(path: PathBuf) -> Result<ServerConfig> {
   let data = fs::read_to_string(path)?;
-
   let c: ServerConfig = serde_json::from_str(&data)?;
-
-  println!("test_parse: {:?}", c);
 
   Ok(c)
 }

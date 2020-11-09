@@ -30,7 +30,7 @@ struct Options {
   configuration_path: PathBuf,
 }
 
-type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+pub(crate) type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 fn main() -> Result<()> {
   SimpleLogger::new().with_level(log::LevelFilter::Debug).init()?;

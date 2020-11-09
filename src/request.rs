@@ -12,7 +12,6 @@ use percent_encoding::{
 use regex::Regex;
 use std::{
   error::Error,
-  ffi::OsStr,
   marker::Unpin,
 };
 use url::Url;
@@ -23,6 +22,7 @@ use crate::config::{
   RewriteRule,
   ServerConfig,
 };
+use crate::mimetype::infer_mimetype;
 use crate::status::Status;
 
 pub async fn parse<R: Read + Unpin>(stream: &mut R) -> Result<Url> {
@@ -164,31 +164,11 @@ async fn send_header<W: Write + Unpin>(stream: &mut W, status: Status, meta: &st
 }
 
 async fn send_file<W: Write + Unpin>(stream: &mut W, path: PathBuf) -> Result<()> {
-  let mimetype = get_mimetype(path.extension());
+  let mimetype = infer_mimetype(&path);
   let mut file = File::open(path).await?;
-  send_header(stream, Status::Success, mimetype).await?;
+  send_header(stream, Status::Success, mimetype.as_str()).await?;
   async_std::io::copy(&mut file, stream).await?;
   Ok(())
-}
-
-fn get_mimetype(extension: Option<&OsStr>) -> &'static str {
-  match extension {
-    Some(extension) => {
-      if let Some(extension) = extension.to_str() {
-        match extension {
-          "gemini" => "text/gemini",
-          "gmi"    => "text/gemini",
-          "md"     => "text/markdown",
-          "txt"    => "text/plain",
-          _        => "application/octet-stream",
-        }
-      }
-      else {
-        "application/octet-stream"
-      }
-    },
-    None => "text/plain",
-  }
 }
 
 async fn generate_index(path: PathBuf, base_url: &Url) -> Result<String> {

@@ -7,6 +7,8 @@ use async_tls::TlsAcceptor;
 use futures::{
   stream::StreamExt,
 };
+use log;
+use simple_logger::SimpleLogger;
 use std::{
   error::Error,
   net::ToSocketAddrs,
@@ -17,6 +19,7 @@ use structopt::StructOpt;
 
 mod config;
 mod connection;
+mod mimetype;
 mod request;
 mod status;
 mod tls;
@@ -30,6 +33,9 @@ struct Options {
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 fn main() -> Result<()> {
+  SimpleLogger::new().init()?;
+  log::info!("Logger initialized");
+
   let options = Options::from_args();
   let conf = config::load(options.configuration_path)?;
 

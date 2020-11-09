@@ -33,8 +33,7 @@ struct Options {
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 fn main() -> Result<()> {
-  SimpleLogger::new().init()?;
-  log::info!("Logger initialized");
+  SimpleLogger::new().with_level(log::LevelFilter::Debug).init()?;
 
   let options = Options::from_args();
   let conf = config::load(options.configuration_path)?;
@@ -65,7 +64,7 @@ fn main() -> Result<()> {
         match res {
           Ok(_) => {}
           Err(err) => {
-            eprintln!("{:?}", err);
+            log::warn!("Error handling connection: {:?}", err);
           }
         };
       });

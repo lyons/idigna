@@ -46,9 +46,11 @@ pub async fn parse<R: Read + Unpin>(stream: &mut R) -> Result<Url> {
   Ok(url)
 }
 
-pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config: &ServerConfig) -> Result<()> {
+pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config: &ServerConfig) -> Result<Status> {
   let url_path = percent_decode_str(request_url.path()).decode_utf8()?;
   let url_path = rewrite_url(&url_path, &config.rewrite_rules);
+
+  let request_status: Status;
   
   // Redirect request if possible ----------------------------------------------
   if let Some(redirect) = apply_redirects(&url_path, &config.redirect_rules) {
@@ -58,7 +60,8 @@ pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config:
       redirect_url = request_url.clone();
       redirect_url.set_path(&redirect);
     }
-    send_header(stream, Status::RedirectPermanent, redirect_url.as_str()).await?;
+    request_status = Status::RedirectPermanent;
+    send_header(stream, request_status, redirect_url.as_str()).await?;
   }
 
   // Otherwise attempt to serve request ----------------------------------------
@@ -80,7 +83,8 @@ pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config:
       {
         let mut redirect_url = String::from(request_url.as_str());
         redirect_url.push_str("/");
-        send_header(stream, Status::RedirectPermanent, &redirect_url).await?;
+        request_status = Status::RedirectPermanent;
+        send_header(stream, request_status, &redirect_url).await?;
       }
       else {
         let mut index_found = false;
@@ -96,16 +100,19 @@ pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config:
         }
 
         if index_found {
+          request_status = Status::Success;
           send_file(stream, file_path).await?;
         }
         else {
           if is_auto_indexed(&url_path, &config.autoindex_rules) {
             let generated_index = generate_index(file_path, request_url).await?;
-            send_header(stream, Status::Success, "text/gemini").await?;
+            request_status = Status::Success;
+            send_header(stream, request_status, "text/gemini").await?;
             stream.write(generated_index.as_bytes()).await?;
           }
           else {
-            send_header(stream, Status::TemporaryFailure, "Forbidden").await?;
+            request_status = Status::TemporaryFailure;
+            send_header(stream, request_status, "Forbidden").await?;
           }
         }
       }
@@ -113,16 +120,18 @@ pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config:
     
     // Requested path is file --------------------------------------------------
     else if file_path.exists().await {
+      request_status = Status::Success;
       send_file(stream, file_path).await?;
     }
 
     // Requested path does not exist -------------------------------------------
     else {
+      request_status = Status::NotFound;
       send_header(stream, Status::NotFound, "File not found").await?;
     }
   }
 
-  Ok(())
+  Ok(request_status)
 }
 
 fn is_auto_indexed(url_path: &str, index_rules: &[Regex]) -> bool {
@@ -137,7 +146,6 @@ fn rewrite_url(url_path: &str, rewrite_rules: &[RewriteRule]) -> String {
   let mut path = String::from(url_path);
   for rule in rewrite_rules {
     path = rule.pattern.replace(&path, rule.substitution.as_str()).into_owned();
-    println!("Rewrite result: {:?}", path);
   }
 
   path

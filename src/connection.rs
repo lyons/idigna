@@ -3,10 +3,10 @@ use async_std::{
   prelude::*,
 };
 use async_tls::TlsAcceptor;
+use log;
 use std::{
   error::Error,
 };
-use url::Url;
 
 use crate::config::ServerConfig;
 use crate::request;
@@ -15,18 +15,27 @@ use crate::status::Status;
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStream, config: &ServerConfig) -> Result<()> {
+  let peer_addr = tcp_stream.peer_addr()?;
   let handshake = acceptor.accept(tcp_stream);
   let mut tls_stream = handshake.await?;
 
-  if let Ok(url) = request::parse(&mut tls_stream).await {
-    if let Some(hostname) = url.host_str() {
+  match request::parse(&mut tls_stream).await {
+    Ok(url) => {
+      let hostname = url.host_str().ok_or(format!("Request from {} containing invalid URL: {}", peer_addr, url))?; 
       if config.server_name.iter().any(|name| name.as_str() == hostname) {
-        request::handle(&mut tls_stream, &url, config).await?;
+        match request::handle(&mut tls_stream, &url, config).await {
+          Ok(status) => log::info!("Handled request {} from {} with status {}", url, peer_addr, status),
+          Err(err)   => log::warn!("Error handling request {} from {}: {}", url, peer_addr, err),
+        }
       }
-    }
-  }
-  else {
-    tls_stream.write(Status::BadRequest.to_bytes()).await?;
+      else {
+        log::warn!("Received request to hostname {} for which no server configuration exists", hostname);
+      }
+    },
+    Err(err) => {
+      tls_stream.write(Status::BadRequest.to_bytes()).await?;
+      log::warn!("Bad request from {}: {}", peer_addr, err);
+    },
   }
 
   tls_stream.flush().await?;

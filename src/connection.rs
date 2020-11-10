@@ -33,16 +33,6 @@ pub async fn handle_connection(acceptor: &TlsAcceptor, tcp_stream: &mut TcpStrea
           log::warn!("Received request to hostname {} for which no server configuration exists", hostname);
         }
       }
-
-      // if config.server_name.iter().any(|name| name.as_str() == hostname) {
-      //   match request::handle(&mut tls_stream, &url, config).await {
-      //     Ok(status) => log::info!("Handled request {} from {} with status {}", url, peer_addr, status),
-      //     Err(err)   => log::warn!("Error handling request {} from {}: {}", url, peer_addr, err),
-      //   }
-      // }
-      // else {
-      //   log::warn!("Received request to hostname {} for which no server configuration exists", hostname);
-      // }
     },
     Err(err) => {
       tls_stream.write(Status::BadRequest.to_bytes()).await?;

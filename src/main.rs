@@ -49,8 +49,6 @@ fn main() -> Result<()> {
 
   let acceptor = TlsAcceptor::from(Arc::new(tls_config));
 
-  //let config_slug = Arc::new(conf);
-
   task::block_on(async {
     let listener = TcpListener::bind(&addr).await?;
     let mut incoming = listener.incoming();
@@ -58,7 +56,6 @@ fn main() -> Result<()> {
     while let Some(stream) = incoming.next().await {
       let acceptor = acceptor.clone();
       let servers = servers.clone();
-      //let config_slug = config_slug.clone();
       let mut stream = stream?;
 
       task::spawn(async move {

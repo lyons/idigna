@@ -18,13 +18,13 @@ pub struct RewriteRule {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct Config {
-  settings: BaseConfig,
+struct ConfigFile {
+  settings: Config,
   servers: Vec<ServerConfig>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct BaseConfig {
+pub struct Config {
   pub listen_addr: String,
   pub tls_certificate: String,
   pub tls_certificate_key: String,
@@ -43,9 +43,9 @@ pub struct ServerConfig {
   pub redirect_rules: Vec<RewriteRule>,
 }
 
-pub fn load(path: PathBuf) -> Result<(BaseConfig, HashMap<String, Arc<ServerConfig>>)> {
+pub fn load(path: PathBuf) -> Result<(Config, HashMap<String, Arc<ServerConfig>>)> {
   let data = fs::read_to_string(path)?;
-  let c: Config = serde_json::from_str(&data)?;
+  let c: ConfigFile = serde_json::from_str(&data)?;
 
   let mut server_hash = HashMap::new();
   for server in c.servers {

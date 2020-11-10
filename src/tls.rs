@@ -14,7 +14,7 @@ use std::{
   path::PathBuf,
 };
 
-use crate::config::ServerConfig;
+use crate::config::BaseConfig;
 use crate::Result;
 
 fn load_certs(path: PathBuf) -> io::Result<Vec<Certificate>> {
@@ -27,7 +27,7 @@ fn load_keys(path: PathBuf) -> io::Result<Vec<PrivateKey>> {
     .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "Invalid key"))
 }
 
-pub fn load_tls_config(options: &ServerConfig) -> Result<TlsServerConfig> {
+pub fn load_tls_config(options: &BaseConfig) -> Result<TlsServerConfig> {
   let certs = load_certs(PathBuf::from(&options.tls_certificate))?;
   let mut keys = load_keys(PathBuf::from(&options.tls_certificate_key))?;
 

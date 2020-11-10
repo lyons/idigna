@@ -32,7 +32,7 @@ pub async fn parse<R: Read + Unpin>(stream: &mut R) -> Result<Url> {
       break;
     }
     else if read_count == 0 {
-      Err("Request terminated unexpectedly")?
+      Err("Request terminated unexpectedly")?;
     }
   }
 

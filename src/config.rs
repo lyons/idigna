@@ -1,7 +1,9 @@
 use regex::Regex;
 use std::{
+  collections::HashMap,
   fs,
   path::PathBuf,
+  sync::Arc,
 };
 use serde::{Deserialize, Serialize};
 use serde_regex;
@@ -16,12 +18,21 @@ pub struct RewriteRule {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ServerConfig {
+struct Config {
+  settings: BaseConfig,
+  servers: Vec<ServerConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BaseConfig {
   pub listen_addr: String,
   pub tls_certificate: String,
   pub tls_certificate_key: String,
+}
 
-  pub server_name: Vec<String>,
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ServerConfig {
+  server_name: Vec<String>,
   pub server_root: String,
   pub index: Vec<String>,
   #[serde(default, with = "serde_regex")]
@@ -32,9 +43,18 @@ pub struct ServerConfig {
   pub redirect_rules: Vec<RewriteRule>,
 }
 
-pub fn load(path: PathBuf) -> Result<ServerConfig> {
+pub fn load(path: PathBuf) -> Result<(BaseConfig, HashMap<String, Arc<ServerConfig>>)> {
   let data = fs::read_to_string(path)?;
-  let c: ServerConfig = serde_json::from_str(&data)?;
+  let c: Config = serde_json::from_str(&data)?;
 
-  Ok(c)
+  let mut server_hash = HashMap::new();
+  for server in c.servers {
+    let hostnames = server.server_name.clone();
+    let block = Arc::new(server);
+    for name in hostnames {
+      server_hash.insert(name, block.clone());
+    }
+  }
+
+  Ok((c.settings, server_hash))
 }

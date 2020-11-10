@@ -36,7 +36,8 @@ fn main() -> Result<()> {
   SimpleLogger::new().with_level(log::LevelFilter::Debug).init()?;
 
   let options = Options::from_args();
-  let conf = config::load(options.configuration_path)?;
+  let (conf, servers) = config::load(options.configuration_path)?;
+  let servers = Arc::new(servers);
 
   let addr = conf
     .listen_addr
@@ -48,7 +49,7 @@ fn main() -> Result<()> {
 
   let acceptor = TlsAcceptor::from(Arc::new(tls_config));
 
-  let config_slug = Arc::new(conf);
+  //let config_slug = Arc::new(conf);
 
   task::block_on(async {
     let listener = TcpListener::bind(&addr).await?;
@@ -56,11 +57,12 @@ fn main() -> Result<()> {
 
     while let Some(stream) = incoming.next().await {
       let acceptor = acceptor.clone();
-      let config_slug = config_slug.clone();
+      let servers = servers.clone();
+      //let config_slug = config_slug.clone();
       let mut stream = stream?;
 
       task::spawn(async move {
-        let res = connection::handle_connection(&acceptor, &mut stream, &config_slug).await;
+        let res = connection::handle_connection(&acceptor, &mut stream, &servers).await;
         match res {
           Ok(_) => {}
           Err(err) => {

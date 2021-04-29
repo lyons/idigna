@@ -1,7 +1,7 @@
 > The twins, Idigna and Buranun, have the body of a snake.
 > They desired to travel far.
 > This desire took the form of the Twin Statue and its gate.
-> The Twin Statue calls forth the gate's power.>
+> The Twin Statue calls forth the gate's power.
 > The hero Hermes used the statues to release the twins.
 >
 > *La-Mulana, Twin Labyrinths, D-1*

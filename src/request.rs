@@ -64,7 +64,7 @@ pub async fn handle<W: Write + Unpin>(stream: &mut W, request_url: &Url, config:
   else {
     // When building the path to attempt serving a file from, we need to strip the
     // leading '/' from the URL path (if it exists (which it always should)), as
-    // pushing an absolute path on to a PathBuf replaces the existing path in it
+    // pushing an absolute path onto a PathBuf replaces the existing path in it
     // rather than appending it. 
     let mut request_path = Path::new(&url_path);
     if request_path.is_absolute() {

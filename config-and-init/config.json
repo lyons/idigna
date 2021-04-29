@@ -1,0 +1,37 @@
+{
+  "settings": {
+    "listen_addr": "127.0.0.1:1965",
+    "tls_certificate": "dev_cert.pem",
+    "tls_certificate_key": "dev_key.rsa"
+  },
+  "servers": [
+    {
+      "server_name": ["127.0.0.1"],
+      "server_root": "/var/gemini/",
+      "index": ["index.gemini", "index.gmi"],
+      "autoindex_rules": [
+        "^/Documents/"
+      ],
+      "rewrite_rules": [
+        {
+          "pattern": "^/foo/(.*)/(.*)$",
+          "substitution": "/Documents/$1.$2"
+        },
+        {
+          "pattern": "^/docs/(.*)$",
+          "substitution": "/Documents/$1"
+        }
+      ],
+      "redirect_rules": [
+        {
+          "pattern": "^/bar/(.*)$",
+          "substitution": "/Documents/$1"
+        },
+        {
+          "pattern": "^/other_server/(.*)",
+          "substitution": "gemini://example.com/$1"
+        }
+      ]
+    }
+  ]
+}

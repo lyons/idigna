@@ -1,0 +1,16 @@
+[Unit]
+Description=Server daemon for the Gemini protocol
+After=network.target nss-lookup.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User=buranun
+WorkingDirectory=/etc/idigna
+ExecStart=/usr/bin/idigna
+StandardOutput=append:/etc/idigna/standard.log
+StandardError=append:/etc/idigna/error.log
+
+[Install]
+WantedBy=multi-user.target
